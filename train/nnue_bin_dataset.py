@@ -85,22 +85,25 @@ class NNUEBinData(torch.utils.data.Dataset):
     
     ply = struct.unpack('H', game_ply_string.bytes)[0]
     score = struct.unpack('h', score_string.bytes)[0]
+    move = struct.unpack('H', move_string.bytes)[0]
+    to_ = (move & 63)
+    from_ = (move & (63 << 6)) >> 6
+    mask_move, true_move = util.to_move_tensors(bd, from_, to_)
     # 1, 0, -1
     outcome = {'00000001': 1.0, '00000000': 0.5, '11111111': 0.0}[game_result_string.bin]
     assert(padding_string.bin == '00000000')
-    return bd, outcome, score
+    return bd, outcome, score, mask_move, true_move
     
   def sample(self):
-    bd, outcome, score = self.sample_data()
-    turn_before = bd.turn
-    mirror = random.choice([False, True])
-    if mirror:
-      bd = bd.mirror()
+    bd, outcome, score, mask_move, true_move = self.sample_data()
     pov = torch.tensor([bd.turn])
     outcome = torch.tensor([outcome])
     score = torch.tensor([score])
     white, black = util.to_tensors(bd)
-    return pov.float(), white.float(), black.float(), outcome.float(), score.float()
+    return pov.float(), white.float(),\
+           black.float(), outcome.float(),\
+           score.float(), mask_move.float(),\
+           true_move.float()
   
   def sample_batch(self):
     pov_ls = []
@@ -108,17 +111,22 @@ class NNUEBinData(torch.utils.data.Dataset):
     black_ls = []
     outcome_ls = []
     score_ls = []
+    mask_move_ls = []
+    true_move_ls = []
     for _ in range(self.batch_size):
-      pov, white, black, outcome, score = self.sample()
+      pov, white, black, outcome, score, mask_move, true_move = self.sample()
       pov_ls.append(pov)
       white_ls.append(white)
       black_ls.append(black)
       outcome_ls.append(outcome)
       score_ls.append(score)
+      mask_move_ls.append(mask_move)
+      true_move_ls.append(true_move)
     return torch.stack(pov_ls, dim=0).to(self.device),\
       torch.stack(white_ls, dim=0).to(self.device),\
       torch.stack(black_ls, dim=0).to(self.device),\
       torch.stack(outcome_ls, dim=0).to(self.device),\
-      torch.stack(score_ls, dim=0).to(self.device)
-
+      torch.stack(score_ls, dim=0).to(self.device),\
+      torch.stack(mask_move_ls, dim=0).to(self.device),\
+      torch.stack(true_move_ls, dim=0).to(self.device)
 

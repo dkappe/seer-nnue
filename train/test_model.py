@@ -26,5 +26,9 @@ while True:
   #print('white_half_kp_indices: ', util.half_kp(w.unsqueeze(0), b.unsqueeze(0)).flatten().nonzero())
   #print('black half_kp_indices: ', util.half_kp(b.unsqueeze(0), w.unsqueeze(0)).flatten().nonzero())
   white, black = util.to_tensors(bd);
-  val = M(torch.tensor([bd.turn]).float(), white.unsqueeze(0).float(), black.unsqueeze(0).float())
+  val, act = M(torch.tensor([bd.turn]).float(), white.unsqueeze(0).float(), black.unsqueeze(0).float())
   print(val)
+  print(act.detach().reshape(64, 64))
+  act = act.reshape(*util.move_size())
+  for mv in bd.legal_moves:
+    print(mv.uci(), act[mv.from_square, mv.to_square])

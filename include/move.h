@@ -138,8 +138,11 @@ struct move_list{
   iterator end() const { return data.begin() + size_; }
 
   bool has(const move& mv) const {
-    return end() == std::find(begin(), end(), mv);    
+    return end() == std::find(begin(), end(), mv);
   }
+
+  const move& at(const size_t& idx) const { return data[idx]; }
+  move& at(const size_t& idx){ return data[idx]; }
 
   size_t size() const {
     return size_;

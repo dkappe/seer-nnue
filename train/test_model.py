@@ -8,11 +8,11 @@ import model
 
 config = C.Config('config.yaml')
 
-M = model.NNUE().to(config.device)
+M = model.NNUE().to('cpu')
 
 if (path.exists(config.model_save_path)):
   print('Loading model ... ')
-  M.load_state_dict(torch.load(config.model_save_path, map_location=config.device))
+  M.load_state_dict(torch.load(config.model_save_path, map_location='cpu'))
 
 num_parameters = sum(map(lambda x: torch.numel(x), M.parameters()))
 
@@ -28,7 +28,15 @@ while True:
   white, black = util.to_tensors(bd);
   val, act = M(torch.tensor([bd.turn]).float(), white.unsqueeze(0).float(), black.unsqueeze(0).float())
   print(val)
-  print(act.detach().reshape(64, 64))
+  print(act.flatten())
+  act = torch.nn.functional.softmax(act.detach(), dim=-1)
   act = act.reshape(*util.move_size())
+  s = 0.0
+  ls = []
   for mv in bd.legal_moves:
-    print(mv.uci(), act[mv.from_square, mv.to_square])
+    val = act[0, mv.from_square] * act[1, mv.to_square]
+    s += val
+    ls.append((mv, val))
+  ls.sort(reverse=True, key=lambda x: x[1])
+  for mv, val in ls:
+    print(mv.uci(), val / s)

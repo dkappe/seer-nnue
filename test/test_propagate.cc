@@ -2,6 +2,7 @@
 
 #include <nnue_half_kp.h>
 #include <board.h>
+#include <move_picker.h>
 
 int main(){
   const auto weights = nnue::half_kp_weights<float>{}.load("../train/model/save.bin");
@@ -14,14 +15,21 @@ int main(){
   bd.show_init(eval);
   
   for(;;){
-    const float result = eval.propagate(bd.turn());
-    std::cout << bd.fen();
-    std::cout << " -> real: " << result << '\n';
-    
+    const float value = eval.get_value(bd.turn());
+    const auto action = eval.get_action(bd.turn());
+    std::cout << bd.fen() << '\n';
+    std::cout << " -> value: " << value << '\n';
+    std::cout << " -> action: " << action << '\n';
     const chess::move_list mv_ls = bd.generate_moves();
-    std::cout << mv_ls << std::endl;
+    
+    auto picker =  chess::move_picker<float>(action, mv_ls);
+    std::cout << picker << '\n';
+    
     size_t i; std::cin >> i;
-    eval = bd.half_kp_updated(mv_ls.data[i], eval);
-    bd = bd.forward(mv_ls.data[i]);
+    for(size_t idx(0); idx < i; ++idx){ picker.step(); }
+    
+    const auto mv = std::get<chess::move>(picker.val());
+    eval = bd.half_kp_updated(mv, eval);
+    bd = bd.forward(mv);
   }
 }

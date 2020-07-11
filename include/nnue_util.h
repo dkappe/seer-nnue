@@ -32,6 +32,14 @@ struct stack_vector{
     return *this;
   }
   
+  constexpr stack_vector<T, dim>& shift_(const T& b){
+    #pragma omp simd
+    for(size_t i = 0; i < dim; ++i){
+      data[i] += b;
+    }
+    return *this;
+  }
+  
   constexpr stack_vector<T, dim>& sub_(const T* other){
     #pragma omp simd
     for(size_t i = 0; i < dim; ++i){
@@ -39,11 +47,19 @@ struct stack_vector{
     }
     return *this;
   }
-  
+
   constexpr stack_vector<T, dim>& fma_(const T c, const T* other){
     #pragma omp simd
     for(size_t i = 0; i < dim; ++i){
       data[i] += c * other[i];
+    }
+    return *this;
+  }
+  
+  constexpr stack_vector<T, dim>& scale_(const T& m){
+    #pragma omp simd
+    for(size_t i = 0; i < dim; ++i){
+      data[i] *= m;
     }
     return *this;
   }
@@ -55,6 +71,9 @@ struct stack_vector{
     }
     return *this;
   }
+  
+  constexpr const T& at(const size_t& idx) const { return data[idx]; }
+  constexpr T& at(const size_t& idx){ return data[idx]; }
 
   constexpr T item() const {
     static_assert(dim == 1, "called item() on vector with dim != 1");

@@ -25,7 +25,7 @@ def half_kp_numel():
   return 64 * state_numel()
 
 def move_size():
-  return (64, 64)
+  return (2, 64)
 
 def move_numel():
   return functools.reduce(lambda a, b: a*b, move_size())
@@ -70,12 +70,18 @@ def half_kp_indices(bd):
 
 
 def to_move_tensors(bd, true_from, true_to):
+  FROM_DIM = 0
+  TO_DIM = 1
   mask = torch.zeros(*move_size(), dtype=torch.bool)
   for mv in bd.legal_moves:
-    mask[mv.from_square][mv.to_square] = True
+    mask[FROM_DIM, mv.from_square] = True
+    mask[TO_DIM, mv.to_square] = True
+    
   target = torch.zeros(*move_size(), dtype=torch.bool)
-  target[true_from, true_to] = True
-  return torch.logical_or(mask, target).flatten(), target.flatten()
+  target[FROM_DIM, true_from] = True
+  target[TO_DIM, true_to] = True
+
+  return torch.logical_or(mask, target), target
 
 def get_memmap_handlers(mode, config):
   num_positions = config.num_positions

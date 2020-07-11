@@ -80,10 +80,10 @@ struct thread_worker{
     
     if(is_check){ depth += 1; }
   
-    if(depth <= 0) { return make_result(eval.propagate(bd.turn()), empty_move); }
+    if(depth <= 0) { return make_result(eval.get_value(bd.turn()), empty_move); }
 
-    auto picker = move_picker(list);
-    move first_move = picker.peek();
+    auto picker = move_picker<T>(eval.get_action(bd.turn()), list);
+    move first_move = std::get<1>(picker.val());
 
     if(const auto it = tt_ -> find(bd.hash()); it != tt_ -> end()){
       const tt_entry entry = *it;
@@ -109,8 +109,8 @@ struct thread_worker{
       alpha = std::max(alpha, best_score);
     }
 
-    while(!picker.empty() && go_.load(std::memory_order_relaxed)){
-      const auto mv = picker.pick();
+    for(; picker.has_value() && go_.load(std::memory_order_relaxed); picker.step()){
+      const auto mv = std::get<1>(picker.val());
       if(best_score > beta){ break; }
       if(mv == first_move){ continue; }
 

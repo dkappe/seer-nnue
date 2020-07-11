@@ -10,7 +10,7 @@ import dataset
 import nnue_bin_dataset
 import model
 
-def train_step(M, sample, opt, queue, max_queue_size, lambda_, report=False):
+def train_step(M, sample, opt, queue_value_loss, queue_action_loss, max_queue_size, lambda_, report=False):
   pov, white, black, outcome, score, mask_move, true_move = sample
   pred_value, pred_action = M(pov, white, black)
   
@@ -20,12 +20,17 @@ def train_step(M, sample, opt, queue, max_queue_size, lambda_, report=False):
   eta = 0.5
   loss = eta * value_loss + (1.0 - eta) * action_loss
   
+  loss.backward()
+  
   if report:
     print(loss.item())
-  loss.backward()
-  if(len(queue) >= max_queue_size):
-    queue.pop(0)
-  queue.append(loss.item())
+  
+  if(len(queue_value_loss) >= max_queue_size):
+    queue_value_loss.pop(0)
+    queue_action_loss.pop(0)
+  
+  queue_value_loss.append(value_loss.item())
+  queue_action_loss.append(action_loss.item())
   opt.step()
   M.zero_grad()
 
@@ -42,25 +47,35 @@ def main():
   data = nnue_bin_dataset.NNUEBinData(config)
 
   opt = optim.Adadelta(M.parameters(), lr=config.learning_rate)
-  scheduler = optim.lr_scheduler.StepLR(opt, 10, gamma=0.5)
+  scheduler = optim.lr_scheduler.StepLR(opt, step_size=config.step_size, gamma=config.gamma)
 
-  loss_history = []
-  queue = []
+  action_loss_history = []
+  value_loss_history = []
+  queue_action_loss = []
+  queue_value_loss = []
   
   for epoch in range(1, config.epochs + 1):
+    
     M.to_binary_file(config.bin_model_save_path)
+    torch.save(M.state_dict(), config.model_save_path)
+    
     for i in range(config.epoch_length):
       # update visual data
       if (i % config.test_rate) == 0 and i != 0:
-        loss_history.append(sum(queue) / len(queue))
+        value_loss_history.append(sum(queue_value_loss) / len(queue_value_loss))
+        action_loss_history.append(sum(queue_action_loss) / len(queue_action_loss))
+        if len(value_loss_history) > config.max_history_length:
+          value_loss_history.pop(0)
+          action_loss_history.pop(0)
         plt.clf()
-        plt.plot(loss_history)
+        plt.figure(1)
+        plt.subplot(2,1,1)
+        plt.plot(value_loss_history)
+        plt.subplot(2, 1, 2)
+        plt.plot(action_loss_history)
         plt.savefig('{}/loss_graph.png'.format(config.visual_directory), bbox_inches='tight')
-      
       sample = data.sample_batch()
-      train_step(M, sample, opt, queue, max_queue_size=config.max_queue_size, lambda_=config.lambda_, report=(0 == i % config.report_rate))
-
-    torch.save(M.state_dict(), config.model_save_path)
+      train_step(M, sample, opt, queue_value_loss, queue_action_loss, max_queue_size=config.max_queue_size, lambda_=config.lambda_, report=(0 == i % config.report_rate))
     scheduler.step()
 
 

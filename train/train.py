@@ -13,7 +13,7 @@ import model
 def train_step(M, sample, opt, queue, max_queue_size, lambda_, report=False):
   pov, white, black, outcome, score = sample
   pred = M(pov, white, black)
-  loss = model.loss_fn(outcome, score, pred, lambda_)
+  loss = model.variational_loss_fn(outcome, score, pred, lambda_)
   if report:
     print(loss.item())
   loss.backward()

@@ -1,4 +1,4 @@
-device: 'cuda'
+device: 'cpu'
 model_save_path: 'model/save.pt'
 bin_model_save_path: 'model/save.bin'
 #CONFIGURE DATASET PATH SPECIFIC TO YOUR SETUP:
@@ -16,7 +16,7 @@ test_rate: 8
 max_queue_size: 128
 batch_size: 64
 
-learning_rate: 0.01
+learning_rate: 1.0
 
 max_fullmoves: 256
 uci_engine_path: '/home/connor/Downloads/stockfish-11-linux/Linux/stockfish'

@@ -29,7 +29,9 @@ def king_idx():
 
 
 def cp_conversion(x, alpha=0.0016):
-  return (x * alpha).sigmoid()
+  logit = x * alpha
+  return logit, logit.sigmoid()
+
 
 
 def half_kp(us, them):

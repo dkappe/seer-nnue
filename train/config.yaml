@@ -13,8 +13,8 @@ visual_directory: 'visual'
 
 epochs: 10000000
 save_rate: 10000
-report_rate: 4
-test_rate: 8
+report_rate: 10
+test_rate: 10
 max_queue_size: 128
 
 

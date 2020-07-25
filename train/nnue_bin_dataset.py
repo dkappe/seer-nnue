@@ -121,4 +121,6 @@ class NNUEBinData(torch.utils.data.Dataset):
     return pov.float(), white.float(), black.float(), outcome.float(), score.float()
   
   def __getitem__(self, idx):
+    if idx >= len(self):
+      raise IndexError()
     return self.sample(idx)

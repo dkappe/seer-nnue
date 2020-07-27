@@ -46,7 +46,7 @@ struct move_picker{
       }
       const auto a_count = hh_ -> count(a);
       const auto b_count = hh_ -> count(b);
-      return a_count >= b_count ? i0 : i1;
+      return (a_count >= b_count) ? i0 : i1;
     };
 
     size_t best_index = index;

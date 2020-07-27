@@ -10,10 +10,10 @@ import nnue_bin_dataset
 import model
 
 
-def train_step(M, sample, opt, queue, max_queue_size, lambda_, report=False):
+def train_step(M, sample, opt, queue, max_queue_size, report=False):
   pov, white, black, outcome, score = sample
   pred = M(pov, white, black)
-  loss = model.variational_loss_fn(outcome, score, pred, lambda_)
+  loss = model.variational_loss_fn(outcome, score, pred)
   if report:
     print(loss.item())
   loss.backward()
@@ -64,7 +64,7 @@ def main():
         M.to_binary_file(config.bin_model_save_path)
         torch.save(M.state_dict(), config.model_save_path)
 
-      train_step(M, sample_to_device(sample), opt, queue, max_queue_size=config.max_queue_size, lambda_=config.lambda_, report=(0 == i % config.report_rate))
+      train_step(M, sample_to_device(sample), opt, queue, max_queue_size=config.max_queue_size, report=(0 == i % config.report_rate))
 
     scheduler.step()
 

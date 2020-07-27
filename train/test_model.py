@@ -19,6 +19,7 @@ num_parameters = sum(map(lambda x: torch.numel(x), M.parameters()))
 print(num_parameters)
 
 M.cpu()
+M.eval()
 
 while True:
   bd = chess.Board(input("fen: "))

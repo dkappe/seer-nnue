@@ -10,7 +10,7 @@ class NNUE(nn.Module):
   def __init__(self):
     super(NNUE, self).__init__()
     # DECLARATION ORDER MUST MATCH C++ IMPLEMENTATION
-    BASE = 288
+    BASE = 320
     self.white_affine = nn.Linear(util.half_kp_numel(), BASE)
     self.black_affine = nn.Linear(util.half_kp_numel(), BASE)
     self.fc0 = nn.Linear(2*BASE, 32)
@@ -41,8 +41,9 @@ def variational_loss_fn(outcome, score, pred, lambda_):
   logit, _ = util.cp_conversion(score)
   u, s = pred
 
+  #print(s)
+
   # get log-likelihood of logit-normal distribution
-  print(s)
   log_density = s.log() + 0.5 * ((logit - u) / s) ** 2
 
   # reparameterization trick to sample from logit-normal

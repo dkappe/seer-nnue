@@ -23,12 +23,13 @@ struct half_kp_weights{
   stack_affine<T, 32, 1> fc2{};
 
   size_t num_parameters() const {
-    return w.num_parameters() +
-           b.num_parameters() +
-           skip.num_parameters() +
-           fc0.num_parameters() +
-           fc1.num_parameters() +
-           fc2.num_parameters();
+    return
+      w.num_parameters() +
+      b.num_parameters() +
+      skip.num_parameters() +
+      fc0.num_parameters() +
+      fc1.num_parameters() +
+      fc2.num_parameters();
   }
   
   half_kp_weights<T>& load(weights_streamer<T>& ws){

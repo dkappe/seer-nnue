@@ -6,7 +6,6 @@
 #include <tuple>
 
 #include <move.h>
-#include <history_heuristic.h>
 
 namespace chess{
 
@@ -18,7 +17,6 @@ struct move_orderer_iterator{
   using iterator_category = std::output_iterator_tag;
 
   move_list list_{};
-  const history_heuristic* hh_{nullptr};
   move first_{move::null()};
 
   int idx_{0};
@@ -48,9 +46,7 @@ struct move_orderer_iterator{
           }
         }
       }
-      const auto a_count = hh_ -> count(a);
-      const auto b_count = hh_ -> count(b);
-      return a_count >= b_count ? i0 : i1;
+      return i0;
     };
 
     size_t best_idx = idx_;
@@ -84,8 +80,8 @@ struct move_orderer_iterator{
     return std::tuple(idx_, (list_.data)[idx_]);
   }
 
-  move_orderer_iterator(const move_list& list, const history_heuristic* hh, const move& first, const int& idx) : 
-    list_{list}, hh_{hh}, first_{first}, idx_{idx}
+  move_orderer_iterator(const move_list& list, const move& first, const int& idx) : 
+    list_{list}, first_{first}, idx_{idx}
   {
     if(!first.is_null()){
       const auto iter = std::find(list_.begin(), list_.end(), first_);
@@ -106,11 +102,10 @@ struct move_orderer{
   using iterator = move_orderer_iterator;
   
   move_list list_;
-  const history_heuristic* hh_;
 
   move first{move::null()};
 
-  move_orderer_iterator begin(){ return move_orderer_iterator(list_, hh_, first, 0); }
+  move_orderer_iterator begin(){ return move_orderer_iterator(list_, first, 0); }
   move_orderer_iterator end(){ return move_orderer_iterator(list_.size()); }
 
   move_orderer& set_first(const move& mv){
@@ -118,7 +113,7 @@ struct move_orderer{
     return *this;
   }
 
-  move_orderer(const move_list& list, const history_heuristic* hh) : list_{list}, hh_{hh} {}
+  move_orderer(const move_list& list) : list_{list} {}
 
 };
 

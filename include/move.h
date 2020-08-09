@@ -65,6 +65,11 @@ struct move{
       pawn_delta<c>::last_rank.is_member(to());
   }
   
+  constexpr bool is_promotion() const {
+    return is_promotion<color::white>() || is_promotion<color::black>();
+  }
+  
+  
   template<color c>
   constexpr bool is_pawn_double() const {
     return piece() == piece_type::pawn &&
@@ -160,6 +165,18 @@ struct move_list{
     move_list result{};
     std::for_each(cbegin(), cend(), [this, &result](const move &mv){
       if(mv.is_capture()){
+        result.add_(mv);
+      }
+    });
+    return result;
+  }
+
+  template<typename S>
+  move_list loud_or_checking(const S& s) const {
+    if(s.is_check()){ return *this; }
+    move_list result{};
+    std::for_each(cbegin(), cend(), [&](const move &mv){
+      if(mv.is_capture() || mv.is_enpassant() || mv.is_promotion() || s.forward(mv).is_check()){
         result.add_(mv);
       }
     });

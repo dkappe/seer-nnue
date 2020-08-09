@@ -7,25 +7,25 @@
 
 #include <board.h>
 #include <move.h>
-#include <thread_worker.h>
+#include <search.h>
 #include <option_parser.h>
 
 namespace engine{
 
-
-
 struct uci{
   static constexpr size_t default_thread_count = 1;
-  static constexpr size_t default_hash_size = 128;
+  static constexpr size_t default_tree_size = 3072;
+  static constexpr size_t default_bucket_size = 64;
   static constexpr std::string_view default_weight_path = "/home/connor/Documents/GitHub/seer-nnue/train/model/save.bin";
   
   using real_t = float;
 
-  chess::position_history history{};
-  chess::board position = chess::board::start_pos();
-  nnue::half_kp_weights<engine::uci::real_t> weights_{};
-
-  chess::worker_pool<real_t> pool_;
+  chess::position_history history_{};
+  chess::board position_{chess::board::start_pos()};
+  
+  size_t num_threads_{default_thread_count};
+  nnue::half_kp_weights<real_t> weights_{};
+  mcts::puct_tree<real_t> tree_;
 
   bool go_{false};
   std::chrono::milliseconds budget{0};
@@ -33,31 +33,27 @@ struct uci{
   std::ostream& os = std::cout;
 
   auto options(){
-    auto weight_path = option_callback(string_option("Weights"), [this](const std::string& path){
+    auto weight_path = option_callback(string_option("Weights", std::string(default_weight_path)), [this](const std::string& path){
       weights_.load(path);
     });
 
-    auto hash_size = option_callback(spin_option("Hash", default_hash_size, spin_range{1, 65536}), [this](const int size){
+    auto tree_size = option_callback(spin_option("Tree", default_tree_size, spin_range{1, 65536}), [this](const int size){
       const auto new_size = static_cast<size_t>(size);
-      pool_.tt_ -> resize(new_size);
+      tree_.resize_tree(new_size);
     });
 
     auto thread_count = option_callback(spin_option("Threads", default_thread_count, spin_range{1, 512}), [this](const int count){
       const auto new_count = static_cast<size_t>(count);
-      pool_.grow(new_count);
+      num_threads_ = new_count;
     });
 
-    auto clear_hash = option_callback(button_option("Clear Hash"), [this](bool){
-      pool_.tt_ -> clear();
-    });
-
-    return uci_options(weight_path, hash_size, thread_count, clear_hash);
+    return uci_options(weight_path, tree_size, thread_count);
   }
 
   void uci_new_game(){
-    history.clear();
-    pool_.tt_ -> clear();
-    position = chess::board::start_pos();
+    history_.clear();
+    position_ = chess::board::start_pos();
+    tree_.set_root(history_, position_);
   }
 
   void set_position(const std::string& line){
@@ -68,33 +64,36 @@ struct uci{
     std::smatch matches{};
     if(std::regex_search(line, matches, spos_w_moves)){
       auto [h_, p_] = chess::board::start_pos().after_uci_moves(matches.str(1));
-      history = h_; position = p_;
+      history_ = h_; position_ = p_;
     }else if(std::regex_search(line, matches, fen_w_moves)){
-      position = chess::board::parse_fen(matches.str(1));
-      auto [h_, p_] = position.after_uci_moves(matches.str(2));
-      history = h_; position = p_;
+      position_ = chess::board::parse_fen(matches.str(1));
+      auto [h_, p_] = position_.after_uci_moves(matches.str(2));
+      history_ = h_; position_ = p_;
     }else if(std::regex_search(line, matches, fen)){
-      history.clear();
-      position = chess::board::parse_fen(matches.str(1));
+      history_.clear();
+      position_ = chess::board::parse_fen(matches.str(1));
     }
+    tree_.set_root(history_, position_);
   }
 
   void info_string(){
-    constexpr int max_depth = 96;
-    constexpr real_t eval_limit = static_cast<real_t>(256);
+    auto cp_conversion = [](const real_t& x){ 
+      return static_cast<int>(static_cast<real_t>(300.0) * std::atanh(x));
+    };
     
-    const real_t raw_score = pool_.pool_[0] -> score();
-    const real_t clamped_score = std::max(std::min(eval_limit, raw_score), -eval_limit);
-    auto score = static_cast<int>(clamped_score * 600.0);
-    static int last_reported_depth{0};
-    const int depth = pool_.pool_[0] -> depth();
+    const int score = cp_conversion(tree_.score());
+    static int last_reported_sel_depth{0};
+    //const int est_depth = tree_.est_depth();
+    const int sel_depth = tree_.sel_depth();
+    
     const size_t elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - search_start).count();
-    const size_t node_count = pool_.nodes();
+    const size_t node_count = tree_.nodes();
     const size_t nps = static_cast<size_t>(1000) * node_count / (elapsed_ms+1);
-    if(last_reported_depth != depth && depth <= max_depth){
-      last_reported_depth = depth;
-      os << "info depth " << depth << " seldepth " << depth << " multipv 1 score cp " << score;
-      os << " nodes " << node_count << " nps " << nps << " tbhits " << 0 << " time " << elapsed_ms << " pv " << pool_.pv_string(position) << '\n';
+    
+    if(last_reported_sel_depth != sel_depth){
+      last_reported_sel_depth = sel_depth;
+      os << "info depth " << sel_depth << " seldepth " << sel_depth << " multipv 1 score cp " << score;
+      os << " nodes " << node_count << " nps " << nps << " tbhits " << 0 << " time " << elapsed_ms << " pv " << tree_.pv_string() << '\n';
     }
   }
 
@@ -102,10 +101,8 @@ struct uci{
     go_ = true;
     std::regex go_w_time("go .*wtime ([0-9]+) .*btime ([0-9]+)");
     std::smatch matches{};
-    pool_.set_position(history, position);
-    pool_.go();
     if(std::regex_search(line, matches, go_w_time)){
-      const long long our_time = std::stoll(position.turn() ? matches.str(1) : matches.str(2));
+      const long long our_time = std::stoll(position_.turn() ? matches.str(1) : matches.str(2));
       //budget 1/7 remaing time
       budget = std::chrono::milliseconds(our_time / 7);
       search_start = std::chrono::steady_clock::now();
@@ -117,8 +114,7 @@ struct uci{
   }
 
   void stop(){
-    os << "bestmove " << pool_.pool_[0] -> best_move().name(position.turn()) << std::endl;
-    pool_.stop();
+    os << "bestmove " << tree_.best_move().name(position_.turn()) << std::endl;
     go_ = false;
   }
 
@@ -127,7 +123,7 @@ struct uci{
   }
 
   void id_info(){
-    os << "id name Seer\n";
+    os << "id name seer-puct\n";
     os << "id author C. McMonigle\n";
     os << options();
     os << "uciok\n";
@@ -145,7 +141,7 @@ struct uci{
     }else if(line == "stop"){
       stop();
     }else if(line == "_internal_board"){
-      os << position << std::endl;
+      os << position_ << std::endl;
     }else if(std::regex_match(line, go_rgx)){
       go(line);
     }else if(std::regex_match(line, position_rgx)){
@@ -160,13 +156,15 @@ struct uci{
       if((std::chrono::steady_clock::now() - search_start) >= budget){
         stop();
       }else{
+        tree_.batched_update(num_threads_);
         info_string();
       }
     }
   }
 
-  uci() : pool_(&weights_, default_hash_size, default_thread_count) {
+  uci() : tree_(default_tree_size, default_bucket_size, &weights_) {
     weights_.load(std::string(default_weight_path));
+    tree_.set_root(history_, position_);
   }
 };
 
